@@ -190,13 +190,13 @@ export default function Breathe() {
           bottom: 16,
           right: 20,
           fontSize: 11,
-          color: "rgba(87, 101, 116, 0.5)",
+          color: "rgba(87, 101, 116, 1.0)",
           textDecoration: "none",
           letterSpacing: 1,
           zIndex: 10,
         }}
-        onMouseEnter={(e) => { e.target.style.color = "rgba(131, 149, 167, 0.8)"; }}
-        onMouseLeave={(e) => { e.target.style.color = "rgba(87, 101, 116, 0.5)"; }}
+        onMouseEnter={(e) => { e.target.style.color = "rgba(131, 149, 167, 1.0)"; }}
+        onMouseLeave={(e) => { e.target.style.color = "rgba(87, 101, 116, 1.0)"; }}
       >
         by bcr.co
       </a>
