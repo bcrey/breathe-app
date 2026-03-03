@@ -79,6 +79,43 @@ export default function Breathe() {
   useEffect(() => { accentRef.current = theme.accent; }, [theme]);
 
   useEffect(() => {
+    const size = 32;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+
+    // Background circle
+    ctx.fillStyle = "#0f1923";
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Accent ring
+    ctx.strokeStyle = theme.dot;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size / 2 - 4, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Inner filled dot
+    ctx.fillStyle = theme.dot;
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    const url = canvas.toDataURL("image/png");
+    let link = document.querySelector("link[rel~='icon']");
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = "icon";
+      document.head.appendChild(link);
+    }
+    link.href = url;
+  }, [theme]);
+
+  useEffect(() => {
     if (!started) return;
     setFadeIn(true);
     startTime.current = performance.now();
