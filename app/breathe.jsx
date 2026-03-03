@@ -1,6 +1,14 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 
+const THEMES = [
+  { name: "midnight", bg: "linear-gradient(160deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%)", accent: "100, 149, 237", dot: "#6495ed" },
+  { name: "dusk",     bg: "linear-gradient(160deg, #1e1525 0%, #2d1b3d 40%, #4a2060 100%)", accent: "180, 130, 210", dot: "#b482d2" },
+  { name: "forest",   bg: "linear-gradient(160deg, #0d1f18 0%, #122a1e 40%, #1a4a30 100%)", accent: "80, 180, 130",  dot: "#50b482" },
+  { name: "ocean",    bg: "linear-gradient(160deg, #0d1e2a 0%, #0f2d3a 40%, #0d4a5a 100%)", accent: "60, 180, 200",  dot: "#3cb4c8" },
+  { name: "ember",    bg: "linear-gradient(160deg, #1e140d 0%, #2e1a0e 40%, #4a2510 100%)", accent: "210, 140, 80",  dot: "#d28c50" },
+];
+
 const PHASES = [
   { label: "breathe in", duration: 4000 },
   { label: "hold", duration: 4000 },
@@ -58,6 +66,8 @@ export default function Breathe() {
   const [affirmation, setAffirmation] = useState("");
   const [showAffirmation, setShowAffirmation] = useState(false);
   const [fadeIn, setFadeIn] = useState(false);
+  const [themeIndex, setThemeIndex] = useState(0);
+  const theme = THEMES[themeIndex];
 
   const circleRef = useRef(null);
   const glowRef = useRef(null);
@@ -65,6 +75,8 @@ export default function Breathe() {
   const rafRef = useRef(null);
   const cycleCount = useRef(0);
   const lastPhase = useRef(-1);
+  const accentRef = useRef(theme.accent);
+  useEffect(() => { accentRef.current = theme.accent; }, [theme]);
 
   useEffect(() => {
     if (!started) return;
@@ -92,8 +104,8 @@ export default function Breathe() {
 
       if (circleRef.current) {
         circleRef.current.style.transform = `scale(${scale})`;
-        circleRef.current.style.boxShadow = `0 0 ${50 * scale}px rgba(100, 149, 237, ${0.08 + 0.12 * norm})`;
-        circleRef.current.style.borderColor = `rgba(100, 149, 237, ${0.15 + 0.35 * norm})`;
+        circleRef.current.style.boxShadow = `0 0 ${50 * scale}px rgba(${accentRef.current}, ${0.08 + 0.12 * norm})`;
+        circleRef.current.style.borderColor = `rgba(${accentRef.current}, ${0.15 + 0.35 * norm})`;
       }
       if (glowRef.current) {
         glowRef.current.style.transform = `scale(${scale})`;
@@ -125,7 +137,8 @@ export default function Breathe() {
     <div
       style={{
         minHeight: "100vh",
-        background: "linear-gradient(160deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%)",
+        background: theme.bg,
+        transition: "background 1s ease",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -180,6 +193,41 @@ export default function Breathe() {
           50% { opacity: 1; }
         }
       `}</style>
+
+      <div
+        style={{
+          position: "absolute",
+          top: 20,
+          left: "50%",
+          transform: "translateX(-50%)",
+          display: "flex",
+          gap: 10,
+          zIndex: 10,
+        }}
+      >
+        {THEMES.map((t, i) => (
+          <button
+            key={t.name}
+            onClick={() => setThemeIndex(i)}
+            title={t.name}
+            style={{
+              width: 12,
+              height: 12,
+              borderRadius: "50%",
+              background: t.dot,
+              border: i === themeIndex ? "2px solid rgba(255,255,255,0.7)" : "2px solid transparent",
+              cursor: "pointer",
+              padding: 0,
+              outline: "none",
+              opacity: i === themeIndex ? 1 : 0.45,
+              transition: "opacity 0.3s, border-color 0.3s",
+              boxSizing: "border-box",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.opacity = i === themeIndex ? "1" : "0.45"; }}
+          />
+        ))}
+      </div>
 
       <a
         href="http://briancreyes.com/?tab"
@@ -268,7 +316,7 @@ export default function Breathe() {
                 width: 220,
                 height: 220,
                 borderRadius: "50%",
-                background: "radial-gradient(circle, rgba(100, 149, 237, 0.12) 0%, transparent 70%)",
+                background: `radial-gradient(circle, rgba(${theme.accent}, 0.12) 0%, transparent 70%)`,
                 transform: "scale(0.6)",
                 willChange: "transform, opacity",
               }}
@@ -279,8 +327,8 @@ export default function Breathe() {
                 width: 160,
                 height: 160,
                 borderRadius: "50%",
-                border: "1px solid rgba(100, 149, 237, 0.2)",
-                background: "radial-gradient(circle at 40% 40%, rgba(100, 149, 237, 0.08), rgba(15, 52, 96, 0.2))",
+                border: `1px solid rgba(${theme.accent}, 0.2)`,
+                background: `radial-gradient(circle at 40% 40%, rgba(${theme.accent}, 0.08), rgba(15, 52, 96, 0.2))`,
                 transform: "scale(0.6)",
                 willChange: "transform, box-shadow, border-color",
               }}
