@@ -19,14 +19,39 @@ const PHASES = [
 const TOTAL = PHASES.reduce((s, p) => s + p.duration, 0);
 
 const AFFIRMATIONS = [
-  "You've already done the hard part.",
+  
   "The preparation doesn't disappear.",
   "This moment is yours. Take it.",
-  "You've built harder things than this.",
+  
   "Slow down. You've earned it.",
   "The weight isn't yours to carry all at once.",
   "One breath at a time.",
-  "You're further ahead than it feels.",
+
+  "Feel your feet. Return to the present.",
+  "Let your shoulders drop.",
+
+  "You can do hard things.",
+  "Slow is progress.",
+
+  "Choose the next tiny step.",
+  "Start where you are.",
+  "You can pause and keep going.",
+  "You get to set the pace.",
+
+  "Your effort counts.",
+  "You’re allowed to be human.",
+  "You’re building steadiness.",
+
+  "Let it be lighter.",
+  "Asking for help is strength.",
+  "Rest is part of the strategy.",
+  "One good decision at a time.",
+
+  "You only need the next step.",
+  "Progress can be quiet and still real.",
+  "Today’s win can be small.",
+  "Pause, then proceed.",
+  "Steady beats frantic.",
 ];
 
 function easeInOut(t) {
