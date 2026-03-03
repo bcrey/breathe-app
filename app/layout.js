@@ -1,6 +1,6 @@
 export const metadata = {
   title: "Breathe",
-  description: "A moment for you.",
+  description: "Take a moment.",
 };
 
 export default function RootLayout({ children }) {

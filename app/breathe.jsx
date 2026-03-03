@@ -322,7 +322,7 @@ export default function Breathe() {
           }}
         >
           <div style={{ fontSize: 14, letterSpacing: 4, textTransform: "uppercase", color: "#8395a7" }}>
-            a moment for you
+            take a moment.
           </div>
           <button
             onClick={() => setStarted(true)}
