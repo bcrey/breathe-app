@@ -10,49 +10,57 @@ const THEMES = [
 ];
 
 const PHASES = [
-  { label: "breathe in", duration: 4000 },
-  { label: "hold", duration: 4000 },
+  { label: "breathe in",  duration: 4000 },
+  { label: "hold breath", duration: 4000 },
   { label: "breathe out", duration: 6000 },
-  { label: "rest", duration: 2000 },
+  { label: "rest",        duration: 2000 },
 ];
 
 const TOTAL = PHASES.reduce((s, p) => s + p.duration, 0);
 
 const AFFIRMATIONS = [
-  
   "The preparation doesn't disappear.",
   "This moment is yours. Take it.",
-  
   "Slow down. You've earned it.",
   "The weight isn't yours to carry all at once.",
   "One breath at a time.",
-
   "Feel your feet. Return to the present.",
   "Let your shoulders drop.",
-
   "You can do hard things.",
   "Slow is progress.",
-
   "Choose the next tiny step.",
   "Start where you are.",
   "You can pause and keep going.",
   "You get to set the pace.",
-
   "Your effort counts.",
-  "You’re allowed to be human.",
-  "You’re building steadiness.",
-
+  "You're allowed to be human.",
+  "You're building steadiness.",
   "Let it be lighter.",
   "Asking for help is strength.",
   "Rest is part of the strategy.",
   "One good decision at a time.",
-
   "You only need the next step.",
   "Progress can be quiet and still real.",
-  "Today’s win can be small.",
+  "Today's win can be small.",
   "Pause, then proceed.",
   "Steady beats frantic.",
 ];
+
+function formatDuration(ms) {
+  const s = ms / 1000;
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return `${m}:${rem.toString().padStart(2, "0")}`;
+}
+
+const EXTEND_OPTIONS = [
+  { label: "+1 min",  value: 1  * 60 * 1000 },
+  { label: "+2 min",  value: 2  * 60 * 1000 },
+  { label: "+5 min",  value: 5  * 60 * 1000 },
+  { label: "+10 min", value: 10 * 60 * 1000 },
+  { label: "+20 min", value: 20 * 60 * 1000 },
+];
+
 
 function easeInOut(t) {
   return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
@@ -65,8 +73,8 @@ function getScale(elapsed) {
     if (elapsed < acc + p.duration) {
       const t = (elapsed - acc) / p.duration;
       const smooth = easeInOut(t);
-      if (p.label === "breathe in") return 0.6 + 0.4 * smooth;
-      if (p.label === "hold") return 1.0;
+      if (p.label === "breathe in")  return 0.6 + 0.4 * smooth;
+      if (p.label === "hold breath") return 1.0;
       if (p.label === "breathe out") return 1.0 - 0.4 * smooth;
       return 0.6;
     }
@@ -85,24 +93,33 @@ function getPhaseIndex(elapsed) {
 }
 
 export default function Breathe() {
-  const [started, setStarted] = useState(false);
-  const [phaseIndex, setPhaseIndex] = useState(0);
-  const [cycles, setCycles] = useState(0);
+  const [started, setStarted]         = useState(false);
+  const [phaseIndex, setPhaseIndex]   = useState(0);
+  const [cycles, setCycles]           = useState(0);
   const [affirmation, setAffirmation] = useState("");
   const [showAffirmation, setShowAffirmation] = useState(false);
-  const [fadeIn, setFadeIn] = useState(false);
-  const [themeIndex, setThemeIndex] = useState(0);
+  const [fadeIn, setFadeIn]           = useState(false);
+  const [themeIndex, setThemeIndex]   = useState(0);
+  const [duration, setDuration]       = useState(60 * 1000);
+  const [sessionEnded, setSessionEnded] = useState(false);
+  const [showExtend, setShowExtend]   = useState(false);
+  const [resumeKey, setResumeKey]     = useState(0);
+
   const theme = THEMES[themeIndex];
 
-  const circleRef = useRef(null);
-  const glowRef = useRef(null);
-  const startTime = useRef(0);
-  const rafRef = useRef(null);
-  const cycleCount = useRef(0);
-  const lastPhase = useRef(-1);
-  const accentRef = useRef(theme.accent);
+  const circleRef        = useRef(null);
+  const glowRef          = useRef(null);
+  const startTime        = useRef(0);
+  const rafRef           = useRef(null);
+  const cycleCount       = useRef(0);
+  const lastPhase        = useRef(-1);
+  const accentRef        = useRef(theme.accent);
+  const sessionDurRef    = useRef(null);
+  const timeDisplayRef   = useRef(null);
+
   useEffect(() => { accentRef.current = theme.accent; }, [theme]);
 
+  // Dynamic favicon
   useEffect(() => {
     const size = 32;
     const canvas = document.createElement("canvas");
@@ -110,20 +127,17 @@ export default function Breathe() {
     canvas.height = size;
     const ctx = canvas.getContext("2d");
 
-    // Background circle
     ctx.fillStyle = "#0f1923";
     ctx.beginPath();
     ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
     ctx.fill();
 
-    // Accent ring
     ctx.strokeStyle = theme.dot;
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.arc(size / 2, size / 2, size / 2 - 4, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Inner filled dot
     ctx.fillStyle = theme.dot;
     ctx.globalAlpha = 0.5;
     ctx.beginPath();
@@ -140,14 +154,27 @@ export default function Breathe() {
     link.href = url;
   }, [theme]);
 
+  // Animation tick
   useEffect(() => {
     if (!started) return;
-    setFadeIn(true);
-    startTime.current = performance.now();
+
+    // On initial start (resumeKey 0), reset clock and snapshot duration.
+    // On resume after extend, startTime and sessionDurRef are already correct.
+    if (resumeKey === 0) {
+      startTime.current = performance.now();
+      sessionDurRef.current = duration;
+      setFadeIn(true);
+    }
 
     const tick = (now) => {
       const totalElapsed = now - startTime.current;
       const elapsed = totalElapsed % TOTAL;
+
+      // Check session end
+      if (sessionDurRef.current !== null && totalElapsed >= sessionDurRef.current) {
+        setSessionEnded(true);
+        return;
+      }
 
       const newCycles = Math.floor(totalElapsed / TOTAL);
       if (newCycles > cycleCount.current) {
@@ -174,15 +201,22 @@ export default function Breathe() {
         glowRef.current.style.opacity = `${0.3 + 0.5 * norm}`;
       }
 
+      // Update time display (via ref to avoid re-renders)
+      if (timeDisplayRef.current && sessionDurRef.current !== null) {
+        const remaining = Math.max(0, sessionDurRef.current - totalElapsed);
+        const mins = Math.floor(remaining / 60000);
+        const secs = Math.floor((remaining % 60000) / 1000);
+        timeDisplayRef.current.textContent = `${mins}:${secs.toString().padStart(2, "0")}`;
+      }
+
       rafRef.current = requestAnimationFrame(tick);
     };
 
     rafRef.current = requestAnimationFrame(tick);
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [started]);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [started, resumeKey]);
 
+  // Affirmations
   useEffect(() => {
     if (cycles > 0 && cycles % 2 === 0) {
       const idx = Math.floor(Math.random() * AFFIRMATIONS.length);
@@ -192,6 +226,31 @@ export default function Breathe() {
       return () => clearTimeout(t);
     }
   }, [cycles]);
+
+  const handleBegin = () => {
+    setStarted(true);
+    setSessionEnded(false);
+    setShowExtend(false);
+  };
+
+  const handleExtend = (additionalMs) => {
+    sessionDurRef.current += additionalMs;
+    setSessionEnded(false);
+    setShowExtend(false);
+    setResumeKey(k => k + 1);
+  };
+
+  const handleFinish = () => {
+    setStarted(false);
+    setSessionEnded(false);
+    setShowExtend(false);
+    setFadeIn(false);
+    setCycles(0);
+    cycleCount.current = 0;
+    lastPhase.current = -1;
+    setPhaseIndex(0);
+    setResumeKey(0);
+  };
 
   const phase = PHASES[phaseIndex];
 
@@ -212,6 +271,7 @@ export default function Breathe() {
         userSelect: "none",
       }}
     >
+      {/* Floating particles */}
       <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
         {[...Array(20)].map((_, i) => (
           <div
@@ -254,64 +314,51 @@ export default function Breathe() {
           0%, 100% { opacity: 0.6; }
           50% { opacity: 1; }
         }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .breathe-slider {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 180px;
+          height: 1px;
+          background: rgba(200, 214, 229, 0.12);
+          outline: none;
+          cursor: pointer;
+          border-radius: 1px;
+        }
+        .breathe-slider::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: var(--accent, rgba(200, 214, 229, 0.6));
+          cursor: pointer;
+        }
+        .breathe-slider::-moz-range-thumb {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: var(--accent, rgba(200, 214, 229, 0.6));
+          border: none;
+          cursor: pointer;
+        }
       `}</style>
 
-      <div
-        style={{
-          position: "absolute",
-          top: 20,
-          left: "50%",
-          transform: "translateX(-50%)",
-          display: "flex",
-          gap: 10,
-          zIndex: 10,
-        }}
-      >
-        {THEMES.map((t, i) => (
-          <button
-            key={t.name}
-            onClick={() => setThemeIndex(i)}
-            title={t.name}
-            style={{
-              width: 12,
-              height: 12,
-              borderRadius: "50%",
-              background: t.dot,
-              border: i === themeIndex ? "2px solid rgba(255,255,255,0.7)" : "2px solid transparent",
-              cursor: "pointer",
-              padding: 0,
-              outline: "none",
-              opacity: i === themeIndex ? 1 : 0.45,
-              transition: "opacity 0.3s, border-color 0.3s",
-              boxSizing: "border-box",
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.opacity = i === themeIndex ? "1" : "0.45"; }}
-          />
-        ))}
-      </div>
 
+      {/* Top-right links */}
       <div
         style={{
-          position: "absolute",
-          top: 16,
-          right: 20,
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          zIndex: 10,
+          position: "absolute", top: 16, right: 20,
+          display: "flex", alignItems: "center", gap: 8, zIndex: 10,
         }}
       >
         <a
           href="http://briancreyes.com/?tab"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            fontSize: 11,
-            color: "rgba(87, 101, 116, 1.0)",
-            textDecoration: "none",
-            letterSpacing: 1,
-          }}
+          target="_blank" rel="noopener noreferrer"
+          style={{ fontSize: 11, color: "rgba(87, 101, 116, 1.0)", textDecoration: "none", letterSpacing: 1 }}
           onMouseEnter={(e) => { e.target.style.color = "rgba(131, 149, 167, 1.0)"; }}
           onMouseLeave={(e) => { e.target.style.color = "rgba(87, 101, 116, 1.0)"; }}
         >
@@ -320,8 +367,7 @@ export default function Breathe() {
         <span style={{ color: "rgba(87, 101, 116, 0.6)", fontSize: 11 }}>|</span>
         <a
           href="https://github.com/bcrey/breathe-app"
-          target="_blank"
-          rel="noopener noreferrer"
+          target="_blank" rel="noopener noreferrer"
           style={{ color: "rgba(87, 101, 116, 1.0)", display: "flex", alignItems: "center" }}
           onMouseEnter={(e) => { e.currentTarget.style.color = "rgba(131, 149, 167, 1.0)"; }}
           onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(87, 101, 116, 1.0)"; }}
@@ -332,31 +378,74 @@ export default function Breathe() {
         </a>
       </div>
 
+      {/* ── LANDING ── */}
       {!started ? (
         <div
           style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 32,
+            display: "flex", flexDirection: "column", alignItems: "center",
+            textAlign: "center", padding: "0 32px", maxWidth: 500,
             animation: "gentlePulse 3s ease-in-out infinite",
           }}
         >
-          <div style={{ fontSize: 14, letterSpacing: 4, textTransform: "uppercase", color: "#8395a7" }}>
-            take a moment.
+          <div style={{ fontSize: 72, fontStyle: "italic", color: "#c8d6e5", letterSpacing: 6, lineHeight: 1, marginBottom: 20 }}>
+            breathe
           </div>
+
+          <div style={{ fontSize: 16, color: "#8395a7", letterSpacing: 0.5, lineHeight: 1.75, marginBottom: 40 }}>
+            A guided breathing exercise to calm your nervous system and clear your head.
+            Follow the circle — it expands and contracts with each breath.
+          </div>
+
+          {/* Breathing pattern */}
+          <div style={{ fontSize: 13, color: "#576574", letterSpacing: 2, marginBottom: 48 }}>
+            <span style={{ color: `rgba(${theme.accent}, 0.7)` }}>4s</span> in
+            {"  ·  "}
+            <span style={{ color: `rgba(${theme.accent}, 0.7)` }}>4s</span> hold
+            {"  ·  "}
+            <span style={{ color: `rgba(${theme.accent}, 0.7)` }}>6s</span> out
+          </div>
+
+          {/* Duration picker */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, marginBottom: 48 }}>
+            <div style={{ fontSize: 13, color: `rgba(${theme.accent}, 0.75)`, letterSpacing: 2, fontVariantNumeric: "tabular-nums" }}>
+              {formatDuration(duration)}
+            </div>
+            <input
+              type="range"
+              min={60} max={1800} step={30}
+              value={duration / 1000}
+              onChange={(e) => setDuration(Number(e.target.value) * 1000)}
+              className="breathe-slider"
+              style={{ "--accent": `rgba(${theme.accent}, 0.65)` }}
+            />
+          </div>
+
+          {/* Theme dots */}
+          <div style={{ display: "flex", gap: 10, marginBottom: 44 }}>
+            {THEMES.map((t, i) => (
+              <button
+                key={t.name}
+                onClick={() => setThemeIndex(i)}
+                title={t.name}
+                style={{
+                  width: 12, height: 12, borderRadius: "50%", background: t.dot,
+                  border: i === themeIndex ? "2px solid rgba(255,255,255,0.7)" : "2px solid transparent",
+                  cursor: "pointer", padding: 0, outline: "none",
+                  opacity: i === themeIndex ? 1 : 0.45,
+                  transition: "opacity 0.3s, border-color 0.3s", boxSizing: "border-box",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.opacity = i === themeIndex ? "1" : "0.45"; }}
+              />
+            ))}
+          </div>
+
           <button
-            onClick={() => setStarted(true)}
+            onClick={handleBegin}
             style={{
-              background: "none",
-              border: "1px solid rgba(200, 214, 229, 0.25)",
-              color: "#c8d6e5",
-              padding: "16px 48px",
-              borderRadius: 999,
-              fontSize: 16,
-              fontFamily: "Georgia, serif",
-              cursor: "pointer",
-              letterSpacing: 2,
+              background: "none", border: "1px solid rgba(200, 214, 229, 0.25)",
+              color: "#c8d6e5", padding: "16px 48px", borderRadius: 999, fontSize: 16,
+              fontFamily: "Georgia, serif", cursor: "pointer", letterSpacing: 2,
               transition: "all 0.4s ease",
             }}
             onMouseEnter={(e) => {
@@ -371,97 +460,179 @@ export default function Breathe() {
             begin
           </button>
         </div>
-      ) : (
+
+      ) : sessionEnded ? (
+        /* ── SESSION END ── */
         <div
           style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 48,
-            opacity: fadeIn ? 1 : 0,
-            transition: "opacity 1.5s ease",
+            display: "flex", flexDirection: "column", alignItems: "center",
+            textAlign: "center", animation: "fadeIn 1s ease forwards",
           }}
         >
+          <div style={{ fontSize: 52, fontStyle: "italic", color: "#c8d6e5", letterSpacing: 4, marginBottom: 16 }}>
+            well done.
+          </div>
+          <div style={{ fontSize: 12, color: "#576574", letterSpacing: 3, textTransform: "uppercase", marginBottom: 52 }}>
+            {cycles || 1} {(cycles || 1) === 1 ? "cycle" : "cycles"} complete
+          </div>
+
+          {!showExtend ? (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+              <button
+                onClick={() => setShowExtend(true)}
+                style={{
+                  background: "none", border: "1px solid rgba(200, 214, 229, 0.25)",
+                  color: "#c8d6e5", padding: "14px 44px", borderRadius: 999, fontSize: 15,
+                  fontFamily: "Georgia, serif", cursor: "pointer", letterSpacing: 2,
+                  transition: "all 0.4s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.borderColor = "rgba(200, 214, 229, 0.6)";
+                  e.target.style.background = "rgba(200, 214, 229, 0.05)";
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.borderColor = "rgba(200, 214, 229, 0.25)";
+                  e.target.style.background = "none";
+                }}
+              >
+                keep going
+              </button>
+              <button
+                onClick={handleFinish}
+                style={{
+                  background: "none", border: "none", color: "#576574",
+                  fontSize: 12, fontFamily: "Georgia, serif", cursor: "pointer",
+                  letterSpacing: 2, textTransform: "uppercase", padding: "8px",
+                  transition: "color 0.3s",
+                }}
+                onMouseEnter={(e) => { e.target.style.color = "#8395a7"; }}
+                onMouseLeave={(e) => { e.target.style.color = "#576574"; }}
+              >
+                done
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20 }}>
+              <div style={{ fontSize: 11, letterSpacing: 3, textTransform: "uppercase", color: "#576574" }}>
+                how much longer?
+              </div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
+                {EXTEND_OPTIONS.map(({ label, value }) => (
+                  <button
+                    key={label}
+                    onClick={() => handleExtend(value)}
+                    style={{
+                      background: "none",
+                      border: `1px solid rgba(${theme.accent}, 0.3)`,
+                      color: `rgba(${theme.accent}, 0.9)`,
+                      padding: "10px 20px", borderRadius: 999, fontSize: 13,
+                      fontFamily: "Georgia, serif", cursor: "pointer",
+                      letterSpacing: 1, transition: "all 0.2s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = `rgba(${theme.accent}, 0.1)`;
+                      e.currentTarget.style.borderColor = `rgba(${theme.accent}, 0.6)`;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "none";
+                      e.currentTarget.style.borderColor = `rgba(${theme.accent}, 0.3)`;
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setShowExtend(false)}
+                style={{
+                  background: "none", border: "none", color: "#576574",
+                  fontSize: 12, fontFamily: "Georgia, serif", cursor: "pointer",
+                  letterSpacing: 2, textTransform: "uppercase", padding: "6px",
+                  transition: "color 0.3s",
+                }}
+                onMouseEnter={(e) => { e.target.style.color = "#8395a7"; }}
+                onMouseLeave={(e) => { e.target.style.color = "#576574"; }}
+              >
+                ← back
+              </button>
+            </div>
+          )}
+        </div>
+
+      ) : (
+        /* ── BREATHING SESSION ── */
+        <div
+          style={{
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 48,
+            opacity: fadeIn ? 1 : 0, transition: "opacity 1.5s ease",
+          }}
+        >
+          {/* Circle + progress arc */}
           <div
             style={{
-              position: "relative",
-              width: 220,
-              height: 220,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              position: "relative", width: 260, height: 260,
+              display: "flex", alignItems: "center", justifyContent: "center",
             }}
           >
+
             <div
               ref={glowRef}
               style={{
-                position: "absolute",
-                width: 220,
-                height: 220,
-                borderRadius: "50%",
+                position: "absolute", width: 220, height: 220, borderRadius: "50%",
                 background: `radial-gradient(circle, rgba(${theme.accent}, 0.12) 0%, transparent 70%)`,
-                transform: "scale(0.6)",
-                willChange: "transform, opacity",
+                transform: "scale(0.6)", willChange: "transform, opacity",
               }}
             />
             <div
               ref={circleRef}
               style={{
-                width: 160,
-                height: 160,
-                borderRadius: "50%",
+                width: 160, height: 160, borderRadius: "50%",
                 border: `1px solid rgba(${theme.accent}, 0.2)`,
                 background: `radial-gradient(circle at 40% 40%, rgba(${theme.accent}, 0.08), rgba(15, 52, 96, 0.2))`,
-                transform: "scale(0.6)",
-                willChange: "transform, box-shadow, border-color",
+                transform: "scale(0.6)", willChange: "transform, box-shadow, border-color",
               }}
             />
           </div>
 
+          {/* Phase label */}
           <div
             style={{
-              fontSize: 22,
-              letterSpacing: 3,
-              fontStyle: "italic",
-              color: "#c8d6e5",
-              minHeight: 32,
-              textAlign: "center",
-              transition: "opacity 0.5s ease",
+              fontSize: 22, letterSpacing: 3, fontStyle: "italic", color: "#c8d6e5",
+              minHeight: 32, textAlign: "center", transition: "opacity 0.5s ease",
             }}
           >
             {phase.label}
           </div>
 
-          <div style={{
-            fontSize: 12,
-            letterSpacing: 2,
-            color: "#576574",
-            textTransform: "uppercase",
-            opacity: cycles > 0 ? 1 : 0,
-            transition: "opacity 0.8s ease",
-          }}>
-            {cycles || 1} {cycles <= 1 ? "cycle" : "cycles"} complete
+          {/* Cycles + time remaining */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+            <div
+              style={{
+                fontSize: 12, letterSpacing: 2, color: "#576574", textTransform: "uppercase",
+                opacity: cycles > 0 ? 1 : 0, transition: "opacity 0.8s ease",
+              }}
+            >
+              {cycles || 1} {(cycles || 1) === 1 ? "cycle" : "cycles"} complete
+            </div>
+            {duration !== null && (
+              <div
+                ref={timeDisplayRef}
+                style={{ fontSize: 11, letterSpacing: 2, color: "#3d4f61" }}
+              />
+            )}
           </div>
 
+          {/* Affirmation */}
           <div
             style={{
-              position: "absolute",
-              bottom: 60,
-              height: 30,
-              textAlign: "center",
-              padding: "0 40px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              position: "absolute", bottom: 60, height: 30, textAlign: "center",
+              padding: "0 40px", display: "flex", alignItems: "center", justifyContent: "center",
             }}
           >
             <div
               key={showAffirmation ? affirmation : "empty"}
               style={{
-                fontSize: 15,
-                fontStyle: "italic",
-                color: "#8395a7",
-                letterSpacing: 0.5,
+                fontSize: 15, fontStyle: "italic", color: "#8395a7", letterSpacing: 0.5,
                 opacity: showAffirmation ? 1 : 0,
                 animation: showAffirmation ? "fadeUp 4s ease forwards" : "none",
                 whiteSpace: "nowrap",
