@@ -1,6 +1,17 @@
 export const metadata = {
   title: "Breathe",
-  description: "Take a moment.",
+  description: "A gentle breathing exercise to help you slow down and reset.",
+  openGraph: {
+    title: "Breathe",
+    description: "A gentle breathing exercise to help you slow down and reset.",
+    type: "website",
+    images: [{ width: 1200, height: 630, alt: "Breathe — Take a moment." }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Breathe",
+    description: "A gentle breathing exercise to help you slow down and reset.",
+  },
 };
 
 export default function RootLayout({ children }) {
